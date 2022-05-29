@@ -32,13 +32,13 @@ logger = logging.getLogger(__name__)
 token = os.environ['CADit_token']
 
 # Stages
-REGISTER, INFO, COMPLETE = range(3)
+REGISTER, CLIENT_INFO, COMPLETE = range(3)
 # Common callback data
-SELLER, CLIENT, END, FOUR = range(4)
+SELLER, CLIENT, NEXT, END, RESTART = range(5)
 # Material callback data
 OPTION1, OPTION2, OPTION3 = range(3)
 # Client stages
-MATERIAL, COLOUR, INFILL, ORIENTATION = range(4)
+MATERIAL, COLOR, INFILL, ORIENTATION, CHECK = range(5)
 
 # Define a few command handlers. These usually take the two arguments update and context.
 def start(update: Update, _: CallbackContext) -> int:
@@ -59,10 +59,33 @@ def start(update: Update, _: CallbackContext) -> int:
 
   return REGISTER
 
+def restart(update: Update, _: CallbackContext) -> int:
+
+  """Restart the ordering process for the client."""
+  query = update.callback_query
+  query.answer()
+  keyboard = [
+        [
+            InlineKeyboardButton("Seller", callback_data=str(SELLER)),
+            InlineKeyboardButton("Client", callback_data=str(CLIENT)),
+        ]
+    ]
+  reply_markup = InlineKeyboardMarkup(keyboard)
+  # Send message with text and appended Inlinekeyboard
+  update.message.reply_text("Hi! Do you want to register as a seller or client?", reply_markup=reply_markup)
+
+  return REGISTER
+
 def help_command(update: Update, _: CallbackContext) -> None:
   """Send a message when the command /help is issued."""
   update.message.reply_text('Help!')
 
+def downloader(update, context):
+    context.bot.get_file(update.message.document).download()
+
+    # writing to a custom file
+    with open("custom/file.doc", 'wb') as f:
+        context.bot.get_file(update.message.document).download(out=f)
 
 def echo(update: Update, _: CallbackContext) -> None:
   """Echo the user message."""
@@ -186,21 +209,125 @@ def seller(update: Update, context: CallbackContext) -> int:
   return
 
 def client(update: Update, context: CallbackContext) -> int:
-  """Shows new choice of buttons for client"""
+  """TO BE EDITED TO ASK FOR ANY NECESSARY"""
   query = update.callback_query
+  querydata = query.data
+  context.user_data["Q1"] = querydata
   query.answer()
   keyboard = [
     [
-      InlineKeyboardButton("Option 1", callback_data=str(END)),
-      InlineKeyboardButton("Option 2", callback_data=str(END)),
+      InlineKeyboardButton("Option 1", callback_data=str(MATERIAL)),
+      InlineKeyboardButton("Option 2", callback_data=str(MATERIAL)),
     ],
     [
-      InlineKeyboardButton("End", callback_data=str(END)),
+      InlineKeyboardButton("Option 3", callback_data=str(MATERIAL)),
+    ]
+  ]
+  reply_markup = InlineKeyboardMarkup(keyboard)
+  query.edit_message_text(
+    text="To be used to ask for info", reply_markup=reply_markup
+  )
+  return CLIENT_INFO
+
+def client_material(update: Update, context: CallbackContext) -> int:
+  """Material choices for client"""
+  query = update.callback_query
+  querydata = query.data
+  context.user_data["Material"] = querydata
+  query.answer()
+  keyboard = [
+    [
+      InlineKeyboardButton("Option 1", callback_data=str(COLOR)),
+      InlineKeyboardButton("Option 2", callback_data=str(COLOR)),
+    ],
+    [
+      InlineKeyboardButton("Option 3", callback_data=str(COLOR)),
     ]
   ]
   reply_markup = InlineKeyboardMarkup(keyboard)
   query.edit_message_text(
     text="Choose the desired material for your 3D print", reply_markup=reply_markup
+  )
+  return CLIENT_INFO
+  
+def client_color(update: Update, context: CallbackContext) -> int:
+  """Color choices for client"""
+  query = update.callback_query
+  querydata = query.data
+  context.user_data["Color"] = querydata
+  query.answer()
+  keyboard = [
+    [
+      InlineKeyboardButton("Option 1", callback_data=str(INFILL)),
+      InlineKeyboardButton("Option 2", callback_data=str(INFILL)),
+    ],
+    [
+      InlineKeyboardButton("Option 3", callback_data=str(INFILL)),
+    ]
+  ]
+  reply_markup = InlineKeyboardMarkup(keyboard)
+  query.edit_message_text(
+    text="Choose the desired color for your 3D print", reply_markup=reply_markup
+  )
+  return CLIENT_INFO
+
+def client_infill(update: Update, context: CallbackContext) -> int:
+  """Infill choices for client"""
+  query = update.callback_query
+  querydata = query.data
+  context.user_data["Infill"] = querydata
+  query.answer()
+  keyboard = [
+    [
+      InlineKeyboardButton("Option 1", callback_data=str(ORIENTATION)),
+      InlineKeyboardButton("Option 2", callback_data=str(ORIENTATION)),
+    ],
+    [
+      InlineKeyboardButton("Option 3", callback_data=str(ORIENTATION)),
+    ]
+  ]
+  reply_markup = InlineKeyboardMarkup(keyboard)
+  query.edit_message_text(
+    text="Choose the desired infill for your 3D print", reply_markup=reply_markup
+  )
+  return CLIENT_INFO
+
+def client_orientation(update: Update, context: CallbackContext) -> int:
+  """Orientation choices for client"""
+  query = update.callback_query
+  querydata = query.data
+  context.user_data["Orientation"] = querydata
+  query.answer()
+  
+  keyboard = [
+    [
+      InlineKeyboardButton("Option 1", callback_data=str(CHECK)),
+      InlineKeyboardButton("Option 2", callback_data=str(CHECK)),
+    ],
+    [
+      InlineKeyboardButton("Option 3", callback_data=str(CHECK)),
+    ]
+  ]
+  reply_markup = InlineKeyboardMarkup(keyboard)
+  query.edit_message_text(
+    text="Choose the desired orientation for your 3D print", reply_markup=reply_markup
+  )
+  return CLIENT_INFO
+
+def check_order(update: Update, context: CallbackContext) -> int:
+  """Orientation choices for client"""
+  query = update.callback_query
+  query.answer()
+  
+  keyboard = [
+    [
+      InlineKeyboardButton("Restart", callback_data=str(RESTART)),
+      InlineKeyboardButton("Confirm Order", callback_data=str(END)),
+    ],
+  ]
+  reply_markup = InlineKeyboardMarkup(keyboard)
+  query.edit_message_text(
+    text="Confirm your order?", reply_markup=reply_markup
   )
   return COMPLETE
 
@@ -228,10 +355,15 @@ def main() -> None:
         CallbackQueryHandler(seller, pattern='^' + str(SELLER) + '$'),
         CallbackQueryHandler(client, pattern='^' + str(CLIENT) + '$'),
       ],
-      INFO: [
-        CallbackQueryHandler(end, pattern='^' + str(END) + '$'),
+      CLIENT_INFO: [
+        CallbackQueryHandler(client_material, pattern='^' + str(MATERIAL) + '$'),
+        CallbackQueryHandler(client_color, pattern='^' + str(COLOR) + '$'),
+        CallbackQueryHandler(client_infill, pattern='^' + str(INFILL) + '$'),
+        CallbackQueryHandler(client_orientation, pattern='^' + str(ORIENTATION) + '$'),
+        CallbackQueryHandler(check_order, pattern='^' + str(CHECK) + '$'),
       ],
       COMPLETE: [
+        CallbackQueryHandler(restart, pattern='^' + str(RESTART) + '$'),
         CallbackQueryHandler(end, pattern='^' + str(END) + '$'),
       ],
     },
@@ -240,6 +372,7 @@ def main() -> None:
 
   # Add ConversationHandler to dispatcher that will be used for handling updates
   dp.add_handler(conv_handler)
+  dp.add_handler(MessageHandler(Filters.document, downloader))
 
   # on different commands - answer in Telegram
   # dp.add_handler(CommandHandler("start", start))
